@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Viractal Cards Database</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-title-row">
+        <h1>Viractal TCG Database</h1>
+        <span id="cardCountBadge" class="card-count-badge">載入中...</span>
+      </div>
+    </header>
+
+    <div class="controls-bar">
+      <div class="search-box">
+        <input id="searchInput" type="text" placeholder="搜尋卡名、效果關鍵字、或特定職業..." oninput="handleSearch()">
+      </div>
+      <div class="class-filters" id="classFilters">
+        <button class="filter-btn active" onclick="filterByClass('ALL')">全部 (ALL)</button>
+        <button class="filter-btn" onclick="filterByClass('Hero')">勇者 (Hero)</button>
+        <button class="filter-btn" onclick="filterByClass('Warrior')">戰士 (Warrior)</button>
+        <button class="filter-btn" onclick="filterByClass('Mage')">法師 (Mage)</button>
+        <button class="filter-btn" onclick="filterByClass('Thief')">盜賊 (Thief)</button>
+        <button class="filter-btn" onclick="filterByClass('Merchant')">商人 (Merchant)</button>
+        <button class="filter-btn" onclick="filterByClass('Sniper')">狙擊手 (Sniper)</button>
+        <button class="filter-btn" onclick="filterByClass('Kobold')">狗頭人 (Kobold)</button>
+        <button class="filter-btn" onclick="filterByClass('Demon')">惡魔 (Demon)</button>
+        <button class="filter-btn" onclick="filterByClass('Seeker')">探索者 (Seeker)</button>
+        <button class="filter-btn" onclick="filterByClass('SwordMaiden')">劍女 (SwordMaiden)</button>
+      </div>
+    </div>
+
+    <div id="cardGrid" class="card-grid"></div>
+  </div>
+
+  <script>
+    let allCards = [];
+    let currentClass = 'ALL';
+
+    const classColors = {
+      'Hero': '#f59e0b',
+      'Warrior': '#ef4444',
+      'Mage': '#3b82f6',
+      'Thief': '#10b981',
+      'Merchant': '#eab308',
+      'Sniper': '#06b6d4',
+      'Kobold': '#d97706',
+      'Demon': '#8b5cf6',
+      'Seeker': '#ec4899',
+      'SwordMaiden': '#6366f1'
+    };
+
+    function getWillTag(will) {
+      if (!will) return '<span class="will-tag will-none">無</span>';
+      let className = 'will-none';
+      if (will.includes('正義')) className = 'will-justice';
+      else if (will.includes('慈悲')) className = 'will-mercy';
+      else if (will.includes('智慧')) className = 'will-wisdom';
+      else if (will.includes('尊嚴')) className = 'will-dignity';
+      return `<span class="will-tag ${className}">${will}</span>`;
+    }
+
+    function renderTags(data) {
+      if (!data) return '<span class="will-tag will-none">無</span>';
+      if (Array.isArray(data)) {
+        return data.map(item => getWillTag(item)).join('');
+      }
+      return getWillTag(data);
+    }
+
+    async function init() {
+      try {
+        const res = await fetch('./cards.json');
+        if (!res.ok) throw new Error('無法讀取 cards.json');
+        allCards = await res.json();
+        updateDisplay();
+      } catch (err) {
+        document.getElementById('cardGrid').innerHTML = `
+          <div class="empty-state">
+            <p style="color: #ef4444; font-weight: bold;">資料載入失敗</p>
+            <p style="margin-top: 8px;">請確保 cards.json 與 index.html 位於相同資料夾中。</p>
+          </div>
+        `;
+      }
+    }
+
+    function filterByClass(cls) {
+      currentClass = cls;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent.includes(cls));
+      });
+      updateDisplay();
+    }
+
+    function handleSearch() {
+      updateDisplay();
+    }
+
+    function updateDisplay() {
+      const q = document.getElementById('searchInput').value.trim().toLowerCase();
+      
+      const filtered = allCards.filter(c => {
+        const matchClass = (currentClass === 'ALL' || c.class === currentClass);
+        const matchText = (
+          (c.name || '').toLowerCase().includes(q) ||
+          (c.effect || '').toLowerCase().includes(q) ||
+          (c.class || '').toLowerCase().includes(q)
+        );
+        return matchClass && matchText;
+      });
+
+      document.getElementById('cardCountBadge').textContent = `顯示 ${filtered.length} / ${allCards.length} 張卡牌`;
+      renderGrid(filtered);
+    }
+
+    function renderGrid(cards) {
+      const grid = document.getElementById('cardGrid');
+      if (cards.length === 0) {
+        grid.innerHTML = '<div class="empty-state">未有符合搜尋條件的卡牌</div>';
+        return;
+      }
+
+      grid.innerHTML = cards.map(c => {
+        const themeColor = classColors[c.class] || '#6b7280';
+        return `
+          <div class="tcg-card" style="--card-theme-color: ${themeColor}">
+            <div>
+              <div class="card-header">
+                <div class="card-title-group">
+                  <span class="card-id">#${String(c.id).padStart(3, '0')}</span>
+                  <span class="card-name">${c.name}</span>
+                </div>
+                <span class="class-badge">${c.class}</span>
+              </div>
+              <div class="card-body">
+                <div class="card-effect">${c.effect || '無特殊效果'}</div>
+              </div>
+            </div>
+            <div class="card-meta-row">
+              <div class="meta-group">
+                <span class="meta-label">Cost:</span>
+                <div class="tag-list">${renderTags(c.cost)}</div>
+              </div>
+              <div class="meta-group">
+                <span class="meta-label">Charge:</span>
+                <div class="tag-list">${renderTags(c.charge)}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    init();
+  </script>
+</body>
+</html>
